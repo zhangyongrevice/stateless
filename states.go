@@ -3,6 +3,7 @@ package stateless
 import (
 	"context"
 	"fmt"
+	"github.com/qmuntal/stateless/serr"
 )
 
 type actionBehaviour struct {
@@ -57,21 +58,24 @@ func (sr *stateRepresentation) state() State {
 	return sr.State
 }
 
-func (sr *stateRepresentation) CanHandle(ctx context.Context, trigger Trigger, args ...interface{}) (ok bool) {
-	_, ok = sr.FindHandler(ctx, trigger, args...)
+func (sr *stateRepresentation) CanHandle(ctx context.Context, trigger Trigger, args ...interface{}) (ok bool, err error) {
+	_, ok, err = sr.FindHandler(ctx, trigger, args...)
 	return
 }
 
-func (sr *stateRepresentation) FindHandler(ctx context.Context, trigger Trigger, args ...interface{}) (handler triggerBehaviourResult, ok bool) {
-	handler, ok = sr.findHandler(ctx, trigger, args...)
+func (sr *stateRepresentation) FindHandler(ctx context.Context, trigger Trigger, args ...interface{}) (handler triggerBehaviourResult, ok bool, err error) {
+	handler, ok, err = sr.findHandler(ctx, trigger, args...)
+	if err != nil {
+		return
+	}
 	if ok || sr.Superstate == nil {
 		return
 	}
-	handler, ok = sr.Superstate.FindHandler(ctx, trigger, args...)
+	handler, ok, err = sr.Superstate.FindHandler(ctx, trigger, args...)
 	return
 }
 
-func (sr *stateRepresentation) findHandler(ctx context.Context, trigger Trigger, args ...interface{}) (result triggerBehaviourResult, ok bool) {
+func (sr *stateRepresentation) findHandler(ctx context.Context, trigger Trigger, args ...interface{}) (result triggerBehaviourResult, ok bool, err error) {
 	var (
 		possibleBehaviours []triggerBehaviour
 	)
@@ -95,14 +99,14 @@ func (sr *stateRepresentation) findHandler(ctx context.Context, trigger Trigger,
 		}
 	}
 	if len(metResults) > 1 {
-		panic(fmt.Sprintf("stateless: Multiple permitted exit transitions are configured from state '%v' for trigger '%v'. Guard clauses must be mutually exclusive.", sr.State, trigger))
+		return result, false, serr.New(fmt.Sprintf("stateless: Multiple permitted exit transitions are configured from state '%v' for trigger '%v'. Guard clauses must be mutually exclusive.", sr.State, trigger), serr.Constant_ERROR_MULTI_CONFIG)
 	}
 	if len(metResults) == 1 {
 		result, ok = metResults[0], true
 	} else if len(unmetResults) > 0 {
 		result, ok = unmetResults[0], false
 	}
-	return
+	return result, ok, nil
 }
 
 func (sr *stateRepresentation) Activate(ctx context.Context) error {
@@ -166,7 +170,11 @@ func (sr *stateRepresentation) InternalAction(ctx context.Context, transition Tr
 	var internalTransition *internalTriggerBehaviour
 	var stateRep *stateRepresentation = sr
 	for stateRep != nil {
-		if result, ok := stateRep.findHandler(ctx, transition.Trigger, args...); ok {
+		result, ok, err := stateRep.findHandler(ctx, transition.Trigger, args...)
+		if err != nil {
+			return err
+		}
+		if ok {
 			switch t := result.Handler.(type) {
 			case *internalTriggerBehaviour:
 				internalTransition = t
@@ -176,7 +184,7 @@ func (sr *stateRepresentation) InternalAction(ctx context.Context, transition Tr
 		stateRep = stateRep.Superstate
 	}
 	if internalTransition == nil {
-		panic("stateless: The configuration is incorrect, no action assigned to this internal transition.")
+		return serr.New("stateless: The configuration is incorrect, no action assigned to this internal transition.", serr.Constant_ERROR_NO_ACTION)
 	}
 	return internalTransition.Execute(ctx, transition, args...)
 }

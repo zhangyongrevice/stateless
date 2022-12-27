@@ -3,6 +3,7 @@ package stateless
 import (
 	"context"
 	"fmt"
+	"github.com/qmuntal/stateless/serr"
 	"reflect"
 	"runtime"
 	"strings"
@@ -134,15 +135,16 @@ type triggerWithParameters struct {
 	ArgumentTypes []reflect.Type
 }
 
-func (t triggerWithParameters) validateParameters(args ...interface{}) {
+func (t triggerWithParameters) validateParameters(args ...interface{}) error {
 	if len(args) != len(t.ArgumentTypes) {
-		panic(fmt.Sprintf("stateless: Too many parameters have been supplied. Expecting '%d' but got '%d'.", len(t.ArgumentTypes), len(args)))
+		return serr.New(fmt.Sprintf("stateless: Too many parameters have been supplied. Expecting '%d' but got '%d'.", len(t.ArgumentTypes), len(args)), serr.Constant_ERROR_PARAM_LEN)
 	}
 	for i := range t.ArgumentTypes {
 		tp := reflect.TypeOf(args[i])
 		want := t.ArgumentTypes[i]
 		if !tp.ConvertibleTo(want) {
-			panic(fmt.Sprintf("stateless: The argument in position '%d' is of type '%v' but must be convertible to '%v'.", i, tp, want))
+			return serr.New(fmt.Sprintf("stateless: The argument in position '%d' is of type '%v' but must be convertible to '%v'.", i, tp, want), serr.Constant_ERROR_PARAM_TYPE)
 		}
 	}
+	return nil
 }

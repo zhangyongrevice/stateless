@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"context"
 	"fmt"
+	"github.com/qmuntal/stateless/serr"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -217,7 +218,7 @@ func (sm *StateMachine) CanFireCtx(ctx context.Context, trigger Trigger, args ..
 	if err != nil {
 		return false, err
 	}
-	return sr.CanHandle(ctx, trigger, args...), nil
+	return sr.CanHandle(ctx, trigger, args...)
 }
 
 // SetTriggerParameters specify the arguments that must be supplied when a specific trigger is fired.
@@ -371,7 +372,11 @@ func (sm *StateMachine) internalFireOne(ctx context.Context, trigger Trigger, ar
 	}
 	representativeState := sm.stateRepresentation(source)
 	var result triggerBehaviourResult
-	if result, ok = representativeState.FindHandler(ctx, trigger, args...); !ok {
+	result, ok, err = representativeState.FindHandler(ctx, trigger, args...)
+	if err != nil {
+		return
+	}
+	if !ok {
 		return sm.unhandledTriggerAction(ctx, representativeState.State, trigger, result.UnmetGuardConditions)
 	}
 	switch t := result.Handler.(type) {
@@ -465,7 +470,7 @@ func (sm *StateMachine) enterState(ctx context.Context, sr *stateRepresentation,
 			}
 		}
 		if !isValidForInitialState {
-			panic(fmt.Sprintf("stateless: The target (%v) for the initial transition is not a substate.", sr.InitialTransitionTarget))
+			return nil, serr.New(fmt.Sprintf("stateless: The target (%v) for the initial transition is not a substate.", sr.InitialTransitionTarget), serr.Constant_ERROR_INITIAL_TRANSITION_NOT_SUBSTATE)
 		}
 		initialTranslation := Transition{Source: transition.Source, Destination: sr.InitialTransitionTarget, Trigger: transition.Trigger, isInitial: true}
 		sr = sm.stateRepresentation(sr.InitialTransitionTarget)

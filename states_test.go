@@ -61,19 +61,25 @@ func Test_stateRepresentation_IsIncludedInState_Superstate(t *testing.T) {
 
 func Test_stateRepresentation_CanHandle_TransitionExists_TriggerCannotBeFired(t *testing.T) {
 	sr := newstateRepresentation(stateB)
-	assert.False(t, sr.CanHandle(context.Background(), triggerX))
+	ok, err := sr.CanHandle(context.Background(), triggerX)
+	assert.False(t, ok)
+	assert.True(t, err == nil)
 }
 
 func Test_stateRepresentation_CanHandle_TransitionDoesNotExist_TriggerCanBeFired(t *testing.T) {
 	sr := newstateRepresentation(stateB)
 	sr.AddTriggerBehaviour(&ignoredTriggerBehaviour{baseTriggerBehaviour: baseTriggerBehaviour{Trigger: triggerX}})
-	assert.True(t, sr.CanHandle(context.Background(), triggerX))
+	ok, err := sr.CanHandle(context.Background(), triggerX)
+	assert.True(t, ok)
+	assert.True(t, err == nil)
 }
 
 func Test_stateRepresentation_CanHandle_TransitionExistsInSupersate_TriggerCanBeFired(t *testing.T) {
 	super, sub := createSuperSubstatePair()
 	super.AddTriggerBehaviour(&ignoredTriggerBehaviour{baseTriggerBehaviour: baseTriggerBehaviour{Trigger: triggerX}})
-	assert.True(t, sub.CanHandle(context.Background(), triggerX))
+	ok, err := sub.CanHandle(context.Background(), triggerX)
+	assert.True(t, ok)
+	assert.True(t, err == nil)
 }
 
 func Test_stateRepresentation_CanHandle_TransitionUnmetGuardConditions_TriggerCannotBeFired(t *testing.T) {
@@ -86,7 +92,9 @@ func Test_stateRepresentation_CanHandle_TransitionUnmetGuardConditions_TriggerCa
 			return false
 		}),
 	}, Destination: stateC})
-	assert.False(t, sr.CanHandle(context.Background(), triggerX))
+	ok, err := sr.CanHandle(context.Background(), triggerX)
+	assert.False(t, ok)
+	assert.True(t, err == nil)
 }
 
 func Test_stateRepresentation_CanHandle_TransitionGuardConditionsMet_TriggerCanBeFired(t *testing.T) {
@@ -99,7 +107,9 @@ func Test_stateRepresentation_CanHandle_TransitionGuardConditionsMet_TriggerCanB
 			return true
 		}),
 	}, Destination: stateC})
-	assert.True(t, sr.CanHandle(context.Background(), triggerX))
+	ok, err := sr.CanHandle(context.Background(), triggerX)
+	assert.True(t, ok)
+	assert.True(t, err == nil)
 }
 
 func Test_stateRepresentation_FindHandler_TransitionExistAndSuperstateUnmetGuardConditions_FireNotPossible(t *testing.T) {
@@ -112,11 +122,14 @@ func Test_stateRepresentation_FindHandler_TransitionExistAndSuperstateUnmetGuard
 			return false
 		}),
 	}, Destination: stateC})
-	handler, ok := sub.FindHandler(context.Background(), triggerX)
+	handler, ok, err := sub.FindHandler(context.Background(), triggerX)
 	assert.False(t, ok)
 	assert.NotNil(t, handler)
-	assert.False(t, sub.CanHandle(context.Background(), triggerX))
-	assert.False(t, super.CanHandle(context.Background(), triggerX))
+	assert.Nil(t, err)
+	ok, err = sub.CanHandle(context.Background(), triggerX)
+	assert.False(t, ok)
+	ok, err = super.CanHandle(context.Background(), triggerX)
+	assert.False(t, ok)
 	assert.False(t, handler.Handler.GuardConditionMet(context.Background()))
 }
 
@@ -130,11 +143,14 @@ func Test_stateRepresentation_FindHandler_TransitionExistSuperstateMetGuardCondi
 			return true
 		}),
 	}, Destination: stateC})
-	handler, ok := sub.FindHandler(context.Background(), triggerX)
+	handler, ok, err := sub.FindHandler(context.Background(), triggerX)
 	assert.True(t, ok)
 	assert.NotNil(t, handler)
-	assert.True(t, sub.CanHandle(context.Background(), triggerX))
-	assert.True(t, super.CanHandle(context.Background(), triggerX))
+	assert.Nil(t, err)
+	ok, err = sub.CanHandle(context.Background(), triggerX)
+	assert.True(t, ok)
+	ok, err = super.CanHandle(context.Background(), triggerX)
+	assert.True(t, ok)
 	assert.True(t, handler.Handler.GuardConditionMet(context.Background()))
 	assert.Empty(t, handler.UnmetGuardConditions)
 }
