@@ -16,10 +16,10 @@ func (e *cerr) Cause() error {
 }
 
 // New creates new error containing code and msg
-func New(msg string, code uint32) error {
+func New(msg string, code Constant_ErrorCode) error {
 	return &cerr{
 		error: errors.New(msg),
-		code:  code,
+		code:  uint32(code),
 	}
 }
 
